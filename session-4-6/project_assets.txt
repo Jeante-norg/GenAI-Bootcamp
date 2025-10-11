@@ -1,0 +1,13 @@
+Name: FocusFlow AI
+Tagline: "Build better habits, learn smarter"
+Core Features:
+
+Generates personalized study plans based on your goals
+
+Tracks study sessions and focus time with analytics
+
+Suggests adaptive learning techniques for each subject
+
+Sends reminders and motivational prompts to stay consistent
+
+Provides practice quizzes and summaries for efficient revision
