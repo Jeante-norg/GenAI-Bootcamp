@@ -11,4 +11,6 @@
 1) Analyze this uploaded document and tell me what kind of emissions it represents.
 2) Give user feedback on the data uploaded.
 
-Summary: The AI gave vague and general answers when the pormpt lacked cohesion or clarity, but it was clearer, and user-understandable when the prompts were given in RTFC format.
+Summary: The AI gave vague and general answers when the pormpt lacked cohesion or clarity, but it was clearer, and user-understandable when the prompts were given in RTFC format. 
+==========================================================================================================
+Session 13-14
