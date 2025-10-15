@@ -13,6 +13,14 @@ const userSchema=new mongoose.Schema({
     password:{
         type:String,
         required:true,
+    },
+    otp:{
+        type:Number,
+        default:null,
+    },
+    otpExpiry:{
+        type:Date,
+        default:null,
     }
 })
 module.exports=mongoose.model("User",userSchema)
