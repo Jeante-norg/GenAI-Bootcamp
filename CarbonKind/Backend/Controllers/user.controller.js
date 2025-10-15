@@ -13,13 +13,6 @@ const SignUp=async(req,res)=>{
                 message:"Invalid email format"
             })
         }
-        const passwordRegex=/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-        if(!passwordRegex.test(password)){
-            return res.status(400).json({
-                success:false,
-                message:"Invalid password format"
-            })
-        }
         const hashedPassword=await bcrypt.hash(password,10);
         const newUser=await userModel.create({username,email,password:hashedPassword});
         const token=jwt.sign({id:newUser._id},process.env.JWT_SECRET,{expiresIn:'1d'});
@@ -41,13 +34,6 @@ const Login=async(req,res)=>{
             return res.status(400).json({
                 success:false,
                 message:"Invalid email format"
-            })
-        }
-        const passwordRegex=/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-        if(!passwordRegex.test(password)){
-            return res.status(400).json({
-                success:false,
-                message:"Invalid password format"
             })
         }
     try {
@@ -111,6 +97,7 @@ const UpdateUser=async(req,res)=>{
     const {username,email}=req.body;
     try {
         const user=await userModel.findById(id);
+        // console.log(user);
         if(!user){
             return res.status(404).json({
                 success:false,
