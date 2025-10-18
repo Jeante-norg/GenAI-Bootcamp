@@ -1,22 +1,32 @@
 import React, { useState, useEffect } from "react";
-import { authAPI, checkAuth } from "../services/api.js";
+import { authAPI, checkAuth, userAPI } from "../services/api.js";
 
 function Navbar() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Check authentication status
+  // Fetch user profile
+  const fetchUserProfile = async () => {
+    try {
+      const result = await userAPI.getProfile();
+      if (result.success) {
+        setUser(result.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch user profile:", error);
+    }
+  };
+
+  // Check authentication status and fetch profile
   useEffect(() => {
     const verifyAuth = async () => {
       try {
         const authenticated = await checkAuth();
         setIsAuthenticated(authenticated);
 
-        // In a real app, you'd fetch user profile here
-        // For now, we'll just set a mock user
         if (authenticated) {
-          setUser({ username: "User" });
+          await fetchUserProfile();
         }
       } catch (error) {
         console.error("Auth check failed:", error);
