@@ -46,7 +46,7 @@ const ExportModal = ({ isOpen, onClose, onExport }) => {
 
       const endpoint =
         exportType === "report" ? "sustainability-report" : "export";
-      const url = `http://localhost:8000/export/${endpoint}?${queryParams}`;
+      const url = `https://genai-bootcamp-hgp2.onrender.com/${endpoint}?${queryParams}`;
 
       // Create a hidden anchor tag to trigger download
       const link = document.createElement("a");
