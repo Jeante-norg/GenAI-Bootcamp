@@ -104,8 +104,8 @@ export const carbonAPI = {
 export const userAPI = {
   getProfile: () => apiRequest("/user/profile"),
 
-  updateProfile: (username, email) =>
-    apiRequest("/user/update", {
+  updateProfile: (id, username, email) =>
+    apiRequest(`/user/update/${id}`, {
       method: "PUT",
       body: JSON.stringify({ username, email }),
     }),

@@ -8,6 +8,7 @@ function SettingsPage() {
 
   // Profile state
   const [profile, setProfile] = useState({
+    id: "",
     username: "",
     email: "",
   });
@@ -31,18 +32,27 @@ function SettingsPage() {
   useEffect(() => {
     const loadProfile = async () => {
       try {
-        // In a real app, you'd fetch from userAPI.getProfile()
-        // For now, we'll use mock data
-        setProfile({
-          username: "Demo User",
-          email: "demo@carbonkind.com",
-        });
+        const result = await userAPI.getProfile();
+        if (result.success) {
+          setProfile({
+            id: result.data.id,
+            username: result.data.username,
+            email: result.data.email,
+          });
+        }
       } catch (error) {
         console.error("Failed to load profile:", error);
+        setMessage({ type: "error", text: "Failed to load profile data" });
       }
     };
 
     loadProfile();
+
+    // Load preferences from localStorage
+    const savedPreferences = localStorage.getItem("carbonKindPreferences");
+    if (savedPreferences) {
+      setPreferences(JSON.parse(savedPreferences));
+    }
   }, []);
 
   const handleProfileUpdate = async (e) => {
@@ -51,13 +61,27 @@ function SettingsPage() {
     setMessage({ type: "", text: "" });
 
     try {
-      // In a real app: await userAPI.updateProfile(profile.username, profile.email);
-      setTimeout(() => {
+      const result = await userAPI.updateProfile(
+        profile.id,
+        profile.username,
+        profile.email
+      );
+
+      if (result.success) {
         setMessage({ type: "success", text: "Profile updated successfully!" });
-        setLoading(false);
-      }, 1000);
+        // Refresh the page to show updated username in navbar
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      } else {
+        setMessage({
+          type: "error",
+          text: result.message || "Failed to update profile",
+        });
+      }
     } catch (error) {
       setMessage({ type: "error", text: error.message });
+    } finally {
       setLoading(false);
     }
   };
@@ -83,18 +107,27 @@ function SettingsPage() {
     }
 
     try {
-      // In a real app: await userAPI.updatePassword(passwords.currentPassword, passwords.newPassword);
-      setTimeout(() => {
+      const result = await userAPI.updatePassword(
+        passwords.currentPassword,
+        passwords.newPassword
+      );
+
+      if (result.success) {
         setMessage({ type: "success", text: "Password updated successfully!" });
         setPasswords({
           currentPassword: "",
           newPassword: "",
           confirmPassword: "",
         });
-        setLoading(false);
-      }, 1000);
+      } else {
+        setMessage({
+          type: "error",
+          text: result.message || "Failed to update password",
+        });
+      }
     } catch (error) {
       setMessage({ type: "error", text: error.message });
+    } finally {
       setLoading(false);
     }
   };
@@ -105,27 +138,22 @@ function SettingsPage() {
     setMessage({ type: "", text: "" });
 
     try {
-      // Save preferences to localStorage for demo
+      // Save preferences to localStorage
       localStorage.setItem(
         "carbonKindPreferences",
         JSON.stringify(preferences)
       );
-      setTimeout(() => {
-        setMessage({
-          type: "success",
-          text: "Preferences saved successfully!",
-        });
-        setLoading(false);
-      }, 500);
+      setMessage({ type: "success", text: "Preferences saved successfully!" });
     } catch (error) {
       setMessage({ type: "error", text: error.message });
+    } finally {
       setLoading(false);
     }
   };
 
   const handleExportAllData = async () => {
     try {
-      const url = "http://localhost:8000/export/export?format=json";
+      const url = "http://localhost:8000/export/export?format=csv";
       const link = document.createElement("a");
       link.href = url;
       link.download = true;
@@ -155,18 +183,13 @@ function SettingsPage() {
         if (confirmation === "DELETE") {
           setLoading(true);
           try {
-            // In a real app: await userAPI.deleteAccount();
-            setTimeout(() => {
-              setMessage({
-                type: "success",
-                text: "Account deletion scheduled. You will be logged out.",
-              });
-              setTimeout(() => {
-                authAPI.logout().then(() => {
-                  window.location.href = "/login";
-                });
-              }, 2000);
-            }, 1000);
+            // Note: You'll need to implement deleteAccount in userAPI
+            // For now, we'll show a message
+            setMessage({
+              type: "success",
+              text: "Account deletion feature coming soon. Please contact support.",
+            });
+            setLoading(false);
           } catch (error) {
             setMessage({ type: "error", text: error.message });
             setLoading(false);

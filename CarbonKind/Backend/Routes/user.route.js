@@ -1,12 +1,27 @@
-const router=require("express").Router()
-const {SignUp,Login,Logout,DeleteUser,UpdateUser,updatePassword,forgetPassword,verifyOTP}=require("../Controllers/user.controller.js")
-const {jwtVerify}=require("../Middlewares/jwt-verify.js")
-router.post("/signup",SignUp)
-router.post("/login",Login)
-router.post("/logout",Logout)
-router.post("/forget-password",forgetPassword)
-router.post("/verify-otp",verifyOTP)
-router.delete("/delete/:id",jwtVerify,DeleteUser)
-router.put("/update/:id",jwtVerify,UpdateUser)
-router.put("/update-password",jwtVerify,updatePassword)
-module.exports=router
+const router = require("express").Router();
+const {
+  SignUp,
+  Login,
+  Logout,
+  DeleteUser,
+  UpdateUser,
+  updatePassword,
+  forgetPassword,
+  verifyOTP,
+  getUserProfile,
+} = require("../Controllers/user.controller.js");
+const { jwtVerify } = require("../Middlewares/jwt-verify.js");
+
+router.post("/signup", SignUp);
+router.post("/login", Login);
+router.post("/logout", Logout);
+router.post("/forget-password", forgetPassword);
+router.post("/verify-otp", verifyOTP);
+
+// Protected routes
+router.get("/profile", jwtVerify, getUserProfile);
+router.delete("/delete/:id", jwtVerify, DeleteUser);
+router.put("/update/:id", jwtVerify, UpdateUser);
+router.put("/update-password", jwtVerify, updatePassword);
+
+module.exports = router;
