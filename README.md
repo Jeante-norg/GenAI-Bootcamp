@@ -74,3 +74,5 @@ User Upload → Backend → LLM Agent
 **Agent:** Extracts 180 kWh → retrieves factor (0.82 kg CO₂/kWh) → outputs ≈148 kg CO₂e → suggests switching to LED and off-peak usage.
 
 ---
+
+Deployed Link: https://gen-ai-bootcamp-ashen.vercel.app/
