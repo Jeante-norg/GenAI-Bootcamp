@@ -1,4 +1,4 @@
-const API_BASE = "https://genai-bootcamp-hgp2.onrender.com";
+const API_BASE = "http://localhost:8080";
 
 // Helper function for API calls
 const apiRequest = async (endpoint, options = {}) => {
