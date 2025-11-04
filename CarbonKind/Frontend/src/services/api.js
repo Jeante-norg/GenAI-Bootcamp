@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8080";
+const API_BASE = "http://localhost:8000";
 
 // Helper function for API calls
 const apiRequest = async (endpoint, options = {}) => {
