@@ -1,0 +1,207 @@
+[
+  {
+    "id": "elec-001",
+    "text": "Electricity bills typically contain kilowatt-hour (kWh) usage. Look for terms like 'units consumed', 'energy used', 'kWh', 'kilowatt hours'. The average US grid emission factor is 0.385 kg CO2 per kWh.",
+    "metadata": { "category": "electricity", "unit": "kWh" }
+  },
+  {
+    "id": "elec-002",
+    "text": "Solar power has a very low emission factor of 0.05 kg CO2 per kWh. Wind power is 0.01 kg CO2 per kWh. Coal-based electricity emits 0.96 kg CO2 per kWh. Natural gas electricity emits 0.44 kg CO2 per kWh.",
+    "metadata": { "category": "electricity", "unit": "kWh" }
+  },
+  {
+    "id": "elec-003",
+    "text": "An electricity bill showing 200 kWh monthly usage with grid average power results in 77 kg CO2e. Terms like 'meter reading', 'power consumption', 'electrical usage', 'units' all indicate electricity category.",
+    "metadata": { "category": "electricity", "unit": "kWh" }
+  },
+  {
+    "id": "elec-004",
+    "text": "Utility bills, power bills, electric bills all belong to the electricity category. Common units include kWh, MWh (multiply by 1000 for kWh), Wh (divide by 1000 for kWh). Always convert to kWh before calculation.",
+    "metadata": { "category": "electricity", "unit": "kWh" }
+  },
+  {
+    "id": "trans-001",
+    "text": "Gasoline fuel receipts indicate transportation emissions. One gallon of gasoline produces 8.887 kg CO2. Diesel produces 10.16 kg CO2 per gallon. Jet fuel produces 9.75 kg CO2 per gallon.",
+    "metadata": { "category": "transportation", "unit": "gallons" }
+  },
+  {
+    "id": "trans-002",
+    "text": "Transportation emissions can be measured per mile driven. A gas-powered vehicle emits 0.24 kg CO2 per mile. An electric vehicle emits 0.12 kg CO2 per mile. Public transit emits 0.05 kg CO2 per mile. Flights emit 0.18 kg CO2 per passenger mile.",
+    "metadata": { "category": "transportation", "unit": "miles" }
+  },
+  {
+    "id": "trans-003",
+    "text": "Fuel receipts, petrol receipts, gas station receipts, diesel purchase records all belong to the transportation category. Look for volume in liters (multiply by 0.264172 for gallons) or gallons, along with fuel type.",
+    "metadata": { "category": "transportation", "unit": "gallons" }
+  },
+  {
+    "id": "trans-004",
+    "text": "Car travel logs, mileage reports, rideshare receipts (Uber, Lyft), taxi receipts indicate transportation. If distance in kilometers is given, multiply by 0.621371 to get miles. Use 0.24 kg CO2 per mile for average gas vehicle.",
+    "metadata": { "category": "transportation", "unit": "miles" }
+  },
+  {
+    "id": "trans-005",
+    "text": "Flight itineraries, boarding passes, airline receipts are transportation. Short haul flights (under 3 hours) average 0.18 kg CO2 per passenger mile. Long haul flights may be slightly lower per mile due to fuel efficiency at altitude.",
+    "metadata": { "category": "transportation", "unit": "miles" }
+  },
+  {
+    "id": "food-001",
+    "text": "Beef has the highest carbon footprint of common foods at 27 kg CO2 per kg. Lamb is 24 kg CO2 per kg. These high emissions are due to methane from livestock and land use change for grazing.",
+    "metadata": { "category": "food", "unit": "kg" }
+  },
+  {
+    "id": "food-002",
+    "text": "Grocery receipts, supermarket bills, restaurant receipts indicate food category. Common high-emission foods: beef (27 kg/kg), lamb (24 kg/kg), cheese (13 kg/kg), pork (12.1 kg/kg), turkey (10.9 kg/kg).",
+    "metadata": { "category": "food", "unit": "kg" }
+  },
+  {
+    "id": "food-003",
+    "text": "Lower emission foods include chicken (6.9 kg CO2 per kg), tuna (6.1 kg/kg), eggs (4.8 kg/kg), rice (2.7 kg/kg), tofu (2.0 kg/kg), milk (1.9 kg/kg), vegetables (0.4 kg/kg), fruits (0.4 kg/kg).",
+    "metadata": { "category": "food", "unit": "kg" }
+  },
+  {
+    "id": "food-004",
+    "text": "Food weight conversions: 1 pound = 0.453592 kg. Grocery receipts often list items in pounds or pieces. For mixed grocery purchases without weight, estimate based on typical purchase quantities per item.",
+    "metadata": { "category": "food", "unit": "kg" }
+  },
+  {
+    "id": "food-005",
+    "text": "Plant-based foods have significantly lower emissions. Lentils emit 0.9 kg CO2 per kg, beans 2.0 kg/kg, nuts 2.3 kg/kg, potatoes 2.9 kg/kg. Replacing beef with lentils reduces food emissions by over 95%.",
+    "metadata": { "category": "food", "unit": "kg" }
+  },
+  {
+    "id": "home-001",
+    "text": "Natural gas bills belong to the home energy category. Natural gas emits 5.3 kg CO2 per therm. One therm equals approximately 100 cubic feet (CCF) of natural gas or 29.3 kWh of energy.",
+    "metadata": { "category": "home", "unit": "therms" }
+  },
+  {
+    "id": "home-002",
+    "text": "Home heating bills including oil, propane, and LPG are home energy category. Heating oil emits 10.21 kg CO2 per gallon. Propane emits 5.75 kg CO2 per gallon. LPG emits 5.75 kg CO2 per gallon.",
+    "metadata": { "category": "home", "unit": "therms" }
+  },
+  {
+    "id": "home-003",
+    "text": "Gas bills from utility companies show usage in therms, CCF (hundreds of cubic feet), or MCF (thousands of cubic feet). 1 CCF = 1.02 therms approximately. 1 MCF = 10.2 therms approximately.",
+    "metadata": { "category": "home", "unit": "therms" }
+  },
+  {
+    "id": "home-004",
+    "text": "Home energy bills include terms like 'therms used', 'CCF', 'natural gas consumption', 'heating fuel', 'propane delivery'. If units are in cubic meters, multiply by 0.353147 to get CCF.",
+    "metadata": { "category": "home", "unit": "therms" }
+  },
+  {
+    "id": "waste-001",
+    "text": "Waste disposal records, trash collection bills, landfill receipts belong to the waste category. Landfill waste emits 0.71 kg CO2 per kg due to methane from decomposition. This is equivalent CO2e including methane impact.",
+    "metadata": { "category": "waste", "unit": "kg" }
+  },
+  {
+    "id": "waste-002",
+    "text": "Recycling actually has negative carbon impact: -0.21 kg CO2 per kg recycled. Composting has -0.11 kg CO2 per kg composted. These offset emissions by avoiding production of new materials and methane from landfills.",
+    "metadata": { "category": "waste", "unit": "kg" }
+  },
+  {
+    "id": "waste-003",
+    "text": "Waste bills or receipts showing pounds of trash should be converted: 1 pound = 0.453592 kg. Average household generates about 4.4 pounds (2 kg) of trash per day. Commercial waste is measured in tons.",
+    "metadata": { "category": "waste", "unit": "kg" }
+  },
+  {
+    "id": "classify-001",
+    "text": "Document classification rules: If document mentions kWh, kilowatt, watt-hours, power usage, electricity meter → category is electricity. If mentions gallons, liters of fuel, miles driven, vehicle, flight → category is transportation.",
+    "metadata": { "category": "classification" }
+  },
+  {
+    "id": "classify-002",
+    "text": "Document classification rules continued: If document mentions food items, grocery, supermarket, restaurant, beef, chicken, vegetables → category is food. If mentions gas bill, therms, natural gas, heating oil, propane → category is home.",
+    "metadata": { "category": "classification" }
+  },
+  {
+    "id": "classify-003",
+    "text": "Document classification rules continued: If document mentions trash, waste, garbage, recycling, landfill, disposal → category is waste. Documents not containing consumption quantities cannot be used for carbon calculation.",
+    "metadata": { "category": "classification" }
+  },
+  {
+    "id": "classify-004",
+    "text": "A document is relevant for carbon calculation only if it contains a measurable quantity of consumption. Invoices, bills, receipts, logs, and reports with numerical values are relevant. Marketing materials, news articles, and general text without quantities are not relevant.",
+    "metadata": { "category": "classification" }
+  },
+  {
+    "id": "unit-001",
+    "text": "Unit extraction rules: Extract the numerical value and unit together. Common electricity units: kWh, MWh (=1000 kWh), Wh (=0.001 kWh). Common fuel units: gallons, liters (=0.264172 gallons), liters (fuel). Always report in the primary unit for the category.",
+    "metadata": { "category": "units" }
+  },
+  {
+    "id": "unit-002",
+    "text": "Distance units for transportation: miles, kilometers (1 km = 0.621371 miles). Weight units for food and waste: kg, pounds (1 lb = 0.453592 kg), grams (1 g = 0.001 kg), tonnes (1 tonne = 1000 kg). Volume for home gas: therms, CCF, MCF, cubic meters.",
+    "metadata": { "category": "units" }
+  },
+  {
+    "id": "unit-003",
+    "text": "When a document contains multiple quantities, identify the primary consumption metric. For electricity bills: total kWh used in billing period. For fuel receipts: total gallons or liters purchased. For grocery: total weight of high-emission items.",
+    "metadata": { "category": "units" }
+  },
+  {
+    "id": "context-001",
+    "text": "Average carbon footprints for context: Average American emits 16 tonnes CO2e per year (43.8 kg/day). Driving 1 mile in a gas car emits 0.24 kg CO2. One beef burger (150g) emits approximately 4 kg CO2e. One transatlantic flight emits approximately 1.5 tonnes CO2e per person.",
+    "metadata": { "category": "context" }
+  },
+  {
+    "id": "context-002",
+    "text": "Carbon equivalents for communication: 1 kg CO2 = driving 4.2 miles in a gas car = charging 125 smartphones = 0.046 trees absorbing for one year. 1 tonne CO2 = flying from New York to London (one way) = driving 2,600 miles.",
+    "metadata": { "category": "context" }
+  },
+  {
+    "id": "context-003",
+    "text": "Monthly average emissions by category for a typical US household: electricity 150-300 kg CO2e, transportation 200-400 kg CO2e, food 150-250 kg CO2e, home heating 50-150 kg CO2e, waste 20-40 kg CO2e.",
+    "metadata": { "category": "context" }
+  },
+  {
+    "id": "reduction-001",
+    "text": "Top electricity reduction strategies: switch to LED lighting (saves 75% energy vs incandescent), use smart thermostat (saves 10-15%), install solar panels (can reduce grid usage by 70-100%), use Energy Star appliances.",
+    "metadata": { "category": "reduction", "subcategory": "electricity" }
+  },
+  {
+    "id": "reduction-002",
+    "text": "Top transportation reduction strategies: work from home 2 days/week reduces commute emissions 40%, carpooling halves per-person emissions, switching from gas car to EV reduces driving emissions by 50-70%, using public transit reduces emissions by 80% vs solo driving.",
+    "metadata": { "category": "reduction", "subcategory": "transportation" }
+  },
+  {
+    "id": "reduction-003",
+    "text": "Top food reduction strategies: replacing beef with chicken in one meal/week saves approximately 200 kg CO2e per year, adopting a vegetarian diet saves 1.5 tonnes CO2e per year, buying local and seasonal produce reduces transport emissions by 5-10%.",
+    "metadata": { "category": "reduction", "subcategory": "food" }
+  },
+  {
+    "id": "reduction-004",
+    "text": "Top home energy reduction strategies: adding insulation reduces heating/cooling by 15-25%, sealing air leaks saves 10-20%, upgrading to a heat pump reduces heating emissions by 50-70% vs gas furnace, lowering thermostat 2 degrees saves 5% on heating.",
+    "metadata": { "category": "reduction", "subcategory": "home" }
+  },
+  {
+    "id": "ambiguous-001",
+    "text": "Ambiguous document handling: If a document mentions 'gas' it could be natural gas (home category, therms) or gasoline (transportation category, gallons). Look for context clues: 'gas bill', 'utility' suggests home; 'fuel receipt', 'pump', 'fill up' suggests transportation.",
+    "metadata": { "category": "classification" }
+  },
+  {
+    "id": "ambiguous-002",
+    "text": "Ambiguous quantity handling: If a receipt shows a dollar amount for fuel but not gallons, and the price per gallon is listed, calculate gallons = total amount / price per gallon. Average US gas price context: $3-4 per gallon in 2024.",
+    "metadata": { "category": "transportation", "unit": "gallons" }
+  },
+  {
+    "id": "ambiguous-003",
+    "text": "Mixed document handling: Some bills contain both electricity and gas (dual-fuel bills). In this case, extract electricity kWh for electricity category. If document has both, prioritize the higher-emission source or the one with clearer data.",
+    "metadata": { "category": "classification" }
+  },
+  {
+    "id": "standard-001",
+    "text": "Emission calculation standards used: IPCC Fifth Assessment Report for global warming potentials, EPA eGRID for US electricity emission factors, DEFRA 2023 conversion factors for transportation and food, GHG Protocol for scope categorization.",
+    "metadata": { "category": "methodology" }
+  },
+  {
+    "id": "standard-002",
+    "text": "All emissions reported in kg CO2 equivalent (CO2e) which accounts for all greenhouse gases converted to their CO2 warming potential over 100 years. Methane (CH4) has 28x CO2 warming potential. Nitrous oxide (N2O) has 265x CO2 warming potential.",
+    "metadata": { "category": "methodology" }
+  },
+  {
+    "id": "scope-001",
+    "text": "Carbon scope definitions: Scope 1 = direct emissions from owned sources (driving your car, home heating). Scope 2 = indirect emissions from purchased electricity. Scope 3 = all other indirect emissions (food production, goods purchased). CarbonKind tracks all three scopes.",
+    "metadata": { "category": "methodology" }
+  }
+]

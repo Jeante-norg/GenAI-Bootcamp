@@ -1,9 +1,9 @@
 const API_BASE = "https://genai-bootcamp-hgp2.onrender.com";
-// Helper function for API calls
+
 const apiRequest = async (endpoint, options = {}) => {
   try {
     const response = await fetch(`${API_BASE}${endpoint}`, {
-      credentials: "include", // Important for cookies
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
         ...options.headers,
@@ -24,7 +24,6 @@ const apiRequest = async (endpoint, options = {}) => {
   }
 };
 
-// Authentication API
 export const authAPI = {
   login: (email, password) =>
     apiRequest("/user/login", {
@@ -56,17 +55,34 @@ export const authAPI = {
     }),
 };
 
-// Carbon Data API
 export const carbonAPI = {
-  uploadDocument: (file) => {
+  uploadDocument: async (file) => {
     const formData = new FormData();
     formData.append("file", file);
 
-    return fetch(`${API_BASE}/ai/generate`, {
+    const response = await fetch(`${API_BASE}/ai/generate`, {
       method: "POST",
       credentials: "include",
       body: formData,
-    }).then((response) => response.json());
+    });
+
+    const data = await response.json();
+
+    // Normalize RAG-enriched response — attach a ragEnhanced flag so the UI
+    // can display a contextual badge without the API contract changing.
+    if (data && data.data) {
+      data.ragEnhanced =
+        typeof data.data.calculated_with === "string" &&
+        data.data.calculated_with.includes("CarbonKind");
+      data.hasEquivalents =
+        data.data.equivalents &&
+        typeof data.data.equivalents === "object" &&
+        Object.keys(data.data.equivalents).length > 0;
+      data.hasAdvice =
+        Array.isArray(data.data.advice) && data.data.advice.length > 0;
+    }
+
+    return data;
   },
 
   getUserEmissions: () => apiRequest("/ai/user-emissions"),
@@ -99,7 +115,6 @@ export const carbonAPI = {
     }),
 };
 
-// User Profile API
 export const userAPI = {
   getProfile: () => apiRequest("/user/profile"),
 
@@ -116,7 +131,6 @@ export const userAPI = {
     }),
 };
 
-// Utility function to check if user is authenticated
 export const checkAuth = async () => {
   try {
     const response = await fetch(`${API_BASE}/ai/user-emissions`, {

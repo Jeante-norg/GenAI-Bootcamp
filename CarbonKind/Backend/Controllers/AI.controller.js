@@ -1,9 +1,12 @@
+"use strict";
+
 const path = require("path");
 require("dotenv").config({ path: path.resolve(__dirname, "../config/.env") });
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const cloudinary = require("cloudinary").v2;
 const EmissionRecord = require("../Models/AI.model.js");
 const CarbonCalculator = require("../utils/carbonCalculator.js");
+const { getRelevantContext } = require("../utils/ragPipeline.js");
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_NAME,
@@ -13,103 +16,91 @@ cloudinary.config({
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// Test available models and use the correct one
-let model;
-try {
-  // Try the most common working models
-  const modelNames = [
-    "gemini-1.5-flash",
-    "gemini-1.0-pro",
-    "gemini-pro",
-    "models/gemini-1.5-flash",
-    "models/gemini-1.0-pro",
-  ];
+let model = null;
+const MODEL_CANDIDATES = [
+  "gemini-1.5-flash",
+  "gemini-1.0-pro",
+  "gemini-pro",
+  "models/gemini-1.5-flash",
+  "models/gemini-1.0-pro",
+];
 
-  for (const modelName of modelNames) {
-    try {
-      model = genAI.getGenerativeModel({
-        model: modelName,
-        generationConfig: {
-          temperature: 0.1,
-          topP: 0.8,
-          topK: 40,
-          maxOutputTokens: 1000,
-        },
-      });
-      console.log(`✅ Using Gemini model: ${modelName}`);
-      break;
-    } catch (modelError) {
-      console.log(`❌ Model ${modelName} failed: ${modelError.message}`);
-      continue;
-    }
+for (const modelName of MODEL_CANDIDATES) {
+  try {
+    model = genAI.getGenerativeModel({
+      model: modelName,
+      generationConfig: {
+        temperature: 0.1,
+        topP: 0.8,
+        topK: 40,
+        maxOutputTokens: 1000,
+      },
+    });
+    console.log(`✅ Using Gemini model: ${modelName}`);
+    break;
+  } catch (err) {
+    console.log(`❌ Model ${modelName} unavailable: ${err.message}`);
   }
-
-  if (!model) {
-    throw new Error("No working Gemini model found");
-  }
-} catch (error) {
-  console.error("❌ Gemini model initialization failed:", error);
-  // Fallback to manual processing without AI
-  console.log("🔄 Using manual processing fallback");
 }
+
+if (!model) {
+  console.error(
+    "❌ No Gemini generative model available — will use manual fallback",
+  );
+}
+
+// ─── generateContent ───────────────────────────────────────────────────────────
 
 const generateContent = async (req, res) => {
   try {
     const file = req.file;
-    const userId = req.user?.id;
+    const userId = req.user && req.user.id;
 
-    if (!file) return res.status(400).json({ error: "No file uploaded" });
+    if (!file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
 
     console.log(
       "📁 Processing file:",
       file.originalname,
       "Type:",
-      file.mimetype
+      file.mimetype,
     );
 
-    let fileType = file.mimetype.includes("image")
+    const fileType = file.mimetype.includes("image")
       ? "image"
       : file.mimetype.includes("pdf")
-      ? "pdf"
-      : "text";
+        ? "pdf"
+        : "text";
 
     let extractedText = "";
 
-    // For text files, extract content directly
     if (fileType === "text") {
       extractedText = file.buffer.toString("utf-8");
-      console.log(
-        "📝 Processing text file:",
-        extractedText.substring(0, 100) + "..."
-      );
+      console.log("📝 Text preview:", extractedText.substring(0, 100) + "…");
     } else {
-      // For PDFs and images, we need to inform user about limitations
-      console.log("⚠️  PDF/Image processing - using filename-based detection");
+      console.log("⚠️  PDF/Image — using filename heuristic");
+      const lowerName = file.originalname.toLowerCase();
 
-      // Try to extract some info from filename as fallback
-      const fileName = file.originalname.toLowerCase();
-
-      // Simple filename pattern matching
       if (
-        fileName.includes("electric") ||
-        fileName.includes("power") ||
-        fileName.includes("utility")
+        lowerName.includes("electric") ||
+        lowerName.includes("power") ||
+        lowerName.includes("utility")
       ) {
         extractedText = "Electricity bill: 150 kWh usage";
       } else if (
-        fileName.includes("gas") ||
-        fileName.includes("fuel") ||
-        fileName.includes("petrol")
+        lowerName.includes("gas") ||
+        lowerName.includes("fuel") ||
+        lowerName.includes("petrol")
       ) {
         extractedText = "Gasoline purchase: 10 gallons";
       } else if (
-        fileName.includes("grocery") ||
-        fileName.includes("food") ||
-        fileName.includes("market")
+        lowerName.includes("grocery") ||
+        lowerName.includes("food") ||
+        lowerName.includes("market")
       ) {
         extractedText = "Grocery receipt: various food items";
       } else {
-        // For unrecognized files, return informative error
         return res.status(400).json({
           success: false,
           message: "Unsupported file type or content",
@@ -125,71 +116,78 @@ const generateContent = async (req, res) => {
       }
     }
 
-    // MANUAL PROCESSING FALLBACK - If Gemini is not available
     if (!model) {
-      console.log("🔄 Using manual processing fallback");
+      console.log("🔄 No generative model — using manual fallback");
       return processManually(
         extractedText,
         file.originalname,
         fileType,
         userId,
-        res
+        res,
       );
     }
 
-    const prompt = `
-Analyze this text for carbon footprint calculation. Return ONLY JSON.
+    // RAG: keyword-based context retrieval (synchronous, no API calls)
+    let ragContext = "";
+    try {
+      ragContext = getRelevantContext(extractedText);
+    } catch (ragErr) {
+      console.error("⚠️  RAG retrieval error (non-fatal):", ragErr.message);
+    }
 
-TEXT: ${extractedText}
+    const contextBlock =
+      ragContext.trim().length > 0
+        ? `RELEVANT CARBON KNOWLEDGE (use to improve extraction accuracy):\n${ragContext}\n\n`
+        : "";
 
-If this contains energy/consumption data, return:
-{
-  "relevant": true,
-  "category": "electricity|transportation|food|home|waste",
-  "quantity": 180,
-  "unit": "kWh|gallons|kg|miles|etc",
-  "source_text": "Brief description"
-}
+    const prompt =
+      `${contextBlock}` +
+      `Analyze this text for carbon footprint calculation. Return ONLY valid JSON.\n\n` +
+      `TEXT: ${extractedText}\n\n` +
+      `If this contains energy/consumption data, return:\n` +
+      `{\n` +
+      `  "relevant": true,\n` +
+      `  "category": "electricity|transportation|food|home|waste",\n` +
+      `  "quantity": 180,\n` +
+      `  "unit": "kWh|gallons|kg|miles|therms",\n` +
+      `  "source_text": "Brief description of what was found"\n` +
+      `}\n\n` +
+      `If not relevant, return:\n` +
+      `{\n` +
+      `  "relevant": false,\n` +
+      `  "reason": "No consumption data found"\n` +
+      `}\n\n` +
+      `ONLY return JSON. No markdown, no explanation, no code fences.`;
 
-If not relevant, return:
-{
-  "relevant": false,
-  "reason": "No consumption data found"
-}
+    console.log(
+      `🤖 Calling Gemini${ragContext ? " (RAG context injected)" : ""}…`,
+    );
 
-ONLY return JSON, no other text.
-`;
-
-    console.log("🤖 Sending request to Gemini AI...");
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
-    console.log(
-      "✅ Gemini AI Response received:",
-      responseText.substring(0, 100) + "..."
-    );
+    console.log("✅ Gemini response:", responseText.substring(0, 120) + "…");
 
     let aiAnalysis;
     try {
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        aiAnalysis = JSON.parse(jsonMatch[0]);
-        console.log("📊 AI Analysis:", aiAnalysis);
-      } else {
-        throw new Error("No JSON found in AI response");
-      }
-    } catch (parseError) {
-      console.error("JSON Parse Error:", parseError);
-      // Fallback to manual processing
+      if (!jsonMatch) throw new Error("No JSON object found in response");
+      aiAnalysis = JSON.parse(jsonMatch[0]);
+      console.log("📊 Parsed AI analysis:", aiAnalysis);
+    } catch (parseErr) {
+      console.error(
+        "❌ JSON parse error:",
+        parseErr.message,
+        "— falling back to manual",
+      );
       return processManually(
         extractedText,
         file.originalname,
         fileType,
         userId,
-        res
+        res,
       );
     }
 
-    // Check if document is relevant
     if (!aiAnalysis.relevant) {
       return res.status(400).json({
         success: false,
@@ -204,34 +202,35 @@ ONLY return JSON, no other text.
       });
     }
 
-    // Process with carbon calculator
     return processWithCarbonCalculator(aiAnalysis, fileType, userId, res);
   } catch (error) {
-    console.error("❌ Processing Error:", error);
+    console.error("❌ generateContent error:", error.message);
 
-    // If Gemini fails, try manual processing
-    if (error.message.includes("Gemini") || error.message.includes("model")) {
+    if (
+      req.file &&
+      (error.message.includes("Gemini") ||
+        error.message.includes("model") ||
+        error.message.includes("API"))
+    ) {
       const file = req.file;
-      let extractedText = "";
-
-      if (file.mimetype.includes("text")) {
-        extractedText = file.buffer.toString("utf-8");
-      }
-
+      const extractedText = file.mimetype.includes("text")
+        ? file.buffer.toString("utf-8")
+        : "";
+      const fileType = file.mimetype.includes("image")
+        ? "image"
+        : file.mimetype.includes("pdf")
+          ? "pdf"
+          : "text";
       return processManually(
         extractedText,
         file.originalname,
-        file.mimetype.includes("image")
-          ? "image"
-          : file.mimetype.includes("pdf")
-          ? "pdf"
-          : "text",
-        req.user?.id,
-        res
+        fileType,
+        req.user && req.user.id,
+        res,
       );
     }
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
       details: "Processing failed. Please try a different file.",
@@ -239,19 +238,14 @@ ONLY return JSON, no other text.
   }
 };
 
-// Manual processing function (fallback when AI fails)
+// ─── processManually ───────────────────────────────────────────────────────────
+
 const processManually = (extractedText, fileName, fileType, userId, res) => {
-  console.log("🔄 Using manual text processing");
+  console.log("🔄 Manual text processing");
+  const text = (extractedText || "").toLowerCase();
 
-  const text = extractedText.toLowerCase();
-  let analysis = {
-    relevant: false,
-    reason: "Could not extract consumption data",
-    source_text:
-      "Manual processing: " + (extractedText.substring(0, 50) || fileName),
-  };
+  let analysis = null;
 
-  // Simple pattern matching for common consumption data
   if (text.includes("kwh") || text.includes("kilowatt")) {
     const match =
       text.match(/(\d+(\.\d+)?)\s*kwh/i) ||
@@ -268,8 +262,8 @@ const processManually = (extractedText, fileName, fileType, userId, res) => {
     }
   } else if (
     text.includes("gallon") ||
-    text.includes("gas") ||
-    text.includes("fuel")
+    text.includes("fuel") ||
+    text.includes("petrol")
   ) {
     const match = text.match(/(\d+(\.\d+)?)\s*gallons?/i);
     if (match) {
@@ -297,16 +291,16 @@ const processManually = (extractedText, fileName, fileType, userId, res) => {
     };
   }
 
-  if (!analysis.relevant) {
+  if (!analysis) {
     return res.status(400).json({
       success: false,
-      message: analysis.reason,
+      message: "Could not extract consumption data from document",
       details:
         "Try uploading a text file with clear consumption data like '150 kWh' or '10 gallons'",
       suggestedFiles: [
-        "Text file: 'Electricity: 200 kWh'",
-        "Text file: 'Gasoline: 15 gallons'",
-        "Text file: 'Grocery: beef 2kg, chicken 1kg'",
+        "Text file containing 'Electricity: 200 kWh'",
+        "Text file containing 'Gasoline: 15 gallons'",
+        "Text file containing 'Grocery: beef 2kg, chicken 1kg'",
       ],
     });
   }
@@ -314,62 +308,56 @@ const processManually = (extractedText, fileName, fileType, userId, res) => {
   return processWithCarbonCalculator(analysis, fileType, userId, res);
 };
 
-// Common processing with carbon calculator
-const processWithCarbonCalculator = (analysis, fileType, userId, res) => {
-  let calculatedCarbon = 0;
+// ─── processWithCarbonCalculator ───────────────────────────────────────────────
 
+const processWithCarbonCalculator = (analysis, fileType, userId, res) => {
   try {
-    // Calculate carbon using our enhanced calculator
-    calculatedCarbon = CarbonCalculator.calculate(
+    const calculatedCarbon = CarbonCalculator.calculate(
       analysis.category,
-      analysis.quantity
+      analysis.quantity,
     );
 
-    // Generate insights using our calculator
     const insights = CarbonCalculator.generateInsights(
       analysis,
-      calculatedCarbon
+      calculatedCarbon,
     );
     const equivalents = CarbonCalculator.getCarbonEquivalents(calculatedCarbon);
 
-    // Enhance analysis with our calculations
     const finalAnalysis = {
       ...analysis,
       total_emission: calculatedCarbon,
       unit_emission: "kg CO₂e",
       advice: insights,
-      equivalents: equivalents,
+      equivalents,
       calculated_with: "CarbonKind Calculator",
     };
 
-    console.log("🔢 Carbon Calculation:", calculatedCarbon, "kg CO₂e");
+    console.log("🔢 Calculated carbon:", calculatedCarbon, "kg CO₂e");
 
-    // Save to database
-    if (userId && finalAnalysis) {
-      try {
-        const record = new EmissionRecord({
-          userId,
-          fileUrl:
-            fileType === "text" ? "text://direct-upload" : "file://uploaded",
-          fileType,
-          analysis: finalAnalysis,
-        });
-        record.save().then(() => console.log("💾 Saved to database"));
-      } catch (dbError) {
-        console.error("Database Save Error:", dbError);
-      }
+    if (userId) {
+      const record = new EmissionRecord({
+        userId,
+        fileUrl:
+          fileType === "text" ? "text://direct-upload" : "file://uploaded",
+        fileType,
+        analysis: finalAnalysis,
+      });
+      record
+        .save()
+        .then(() => console.log("💾 EmissionRecord saved"))
+        .catch((dbErr) => console.error("❌ DB save error:", dbErr.message));
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       fileUrl: fileType === "text" ? "text://direct-upload" : "file://uploaded",
       type: fileType,
       data: finalAnalysis,
-      calculatedCarbon: calculatedCarbon,
+      calculatedCarbon,
     });
   } catch (calcError) {
-    console.error("Carbon calculation error:", calcError);
-    res.status(500).json({
+    console.error("❌ Carbon calculation error:", calcError.message);
+    return res.status(500).json({
       success: false,
       message: "Carbon calculation failed",
       details: "Please check your input data and try again.",
@@ -377,33 +365,34 @@ const processWithCarbonCalculator = (analysis, fileType, userId, res) => {
   }
 };
 
+// ─── getUserEmissions ──────────────────────────────────────────────────────────
+
 const getUserEmissions = async (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user && req.user.id;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const records = await EmissionRecord.find({ userId }).sort({
       createdAt: -1,
     });
 
-    // Calculate totals for dashboard
     const totalCarbon = records.reduce(
-      (sum, record) => sum + (record.analysis.total_emission || 0),
-      0
+      (sum, r) => sum + (r.analysis.total_emission || 0),
+      0,
     );
 
+    const now = new Date();
     const monthlyCarbon = records
-      .filter((record) => {
-        const recordDate = new Date(record.createdAt);
-        const currentMonth = new Date();
+      .filter((r) => {
+        const d = new Date(r.createdAt);
         return (
-          recordDate.getMonth() === currentMonth.getMonth() &&
-          recordDate.getFullYear() === currentMonth.getFullYear()
+          d.getMonth() === now.getMonth() &&
+          d.getFullYear() === now.getFullYear()
         );
       })
-      .reduce((sum, record) => sum + (record.analysis.total_emission || 0), 0);
+      .reduce((sum, r) => sum + (r.analysis.total_emission || 0), 0);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       records,
       summary: {
@@ -413,23 +402,20 @@ const getUserEmissions = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("MongoDB Fetch Error:", error);
-    res.status(500).json({ success: false, message: error.message });
+    console.error("❌ getUserEmissions error:", error.message);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// ─── deleteEmissionRecord ─────────────────────────────────────────────────────
 
 const deleteEmissionRecord = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user?.id;
-
+    const userId = req.user && req.user.id;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    // Find and delete the record, ensuring it belongs to the user
-    const record = await EmissionRecord.findOneAndDelete({
-      _id: id,
-      userId: userId,
-    });
+    const record = await EmissionRecord.findOneAndDelete({ _id: id, userId });
 
     if (!record) {
       return res.status(404).json({
@@ -438,7 +424,7 @@ const deleteEmissionRecord = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Record deleted successfully",
       deletedRecord: {
@@ -448,23 +434,20 @@ const deleteEmissionRecord = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Delete Error:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    console.error("❌ deleteEmissionRecord error:", error.message);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// ─── addManualEntry ───────────────────────────────────────────────────────────
 
 const addManualEntry = async (req, res) => {
   try {
     const { type, value, subtype, description } = req.body;
-    const userId = req.user?.id;
-
+    const userId = req.user && req.user.id;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    // Validate input
-    if (!type || value === undefined || !subtype) {
+    if (!type || value === undefined || value === null || !subtype) {
       return res.status(400).json({
         success: false,
         message: "Missing required fields: type, value, subtype",
@@ -479,29 +462,26 @@ const addManualEntry = async (req, res) => {
       });
     }
 
-    // Calculate carbon using our calculator
     const calculatedCarbon = CarbonCalculator.calculate(
       type,
       quantity,
-      subtype
+      subtype,
     );
-
-    // Generate insights
     const insights = CarbonCalculator.generateInsights(
       { category: type, quantity },
-      calculatedCarbon
+      calculatedCarbon,
     );
     const equivalents = CarbonCalculator.getCarbonEquivalents(calculatedCarbon);
 
     const analysis = {
       relevant: true,
       category: type,
-      quantity: quantity,
+      quantity,
       unit: getUnitForType(type),
       total_emission: calculatedCarbon,
       unit_emission: "kg CO₂e",
       advice: insights,
-      equivalents: equivalents,
+      equivalents,
       source_text:
         description ||
         `Manual entry: ${quantity} ${getUnitForType(type)} ${type}`,
@@ -509,44 +489,40 @@ const addManualEntry = async (req, res) => {
       manual_entry: true,
     };
 
-    // Save to database
     const record = new EmissionRecord({
       userId,
       fileUrl: "manual://entry",
       fileType: "manual",
-      analysis: analysis,
+      analysis,
     });
 
     await record.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      calculatedCarbon: calculatedCarbon,
+      calculatedCarbon,
       record: {
         id: record._id,
-        analysis: analysis,
+        analysis,
         createdAt: record.createdAt,
       },
     });
   } catch (error) {
-    console.error("Manual Entry Error:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    console.error("❌ addManualEntry error:", error.message);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// ─── updateEmissionRecord ─────────────────────────────────────────────────────
 
 const updateEmissionRecord = async (req, res) => {
   try {
     const { id } = req.params;
     const { type, value, subtype, description } = req.body;
-    const userId = req.user?.id;
-
+    const userId = req.user && req.user.id;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    // Validate input
-    if (!type || value === undefined || !subtype) {
+    if (!type || value === undefined || value === null || !subtype) {
       return res.status(400).json({
         success: false,
         message: "Missing required fields: type, value, subtype",
@@ -561,12 +537,7 @@ const updateEmissionRecord = async (req, res) => {
       });
     }
 
-    // Find the record and verify ownership
-    const record = await EmissionRecord.findOne({
-      _id: id,
-      userId: userId,
-    });
-
+    const record = await EmissionRecord.findOne({ _id: id, userId });
     if (!record) {
       return res.status(404).json({
         success: false,
@@ -574,40 +545,36 @@ const updateEmissionRecord = async (req, res) => {
       });
     }
 
-    // Calculate new carbon using our calculator
     const calculatedCarbon = CarbonCalculator.calculate(
       type,
       quantity,
-      subtype
+      subtype,
     );
-
-    // Generate new insights
     const insights = CarbonCalculator.generateInsights(
       { category: type, quantity },
-      calculatedCarbon
+      calculatedCarbon,
     );
     const equivalents = CarbonCalculator.getCarbonEquivalents(calculatedCarbon);
 
-    // Update the analysis
     record.analysis = {
       ...record.analysis,
       category: type,
-      quantity: quantity,
+      quantity,
       unit: getUnitForType(type),
       total_emission: calculatedCarbon,
       advice: insights,
-      equivalents: equivalents,
+      equivalents,
       source_text:
         description ||
         `Updated entry: ${quantity} ${getUnitForType(type)} ${type}`,
       calculated_with: "CarbonKind Calculator",
-      manual_entry: true, // Mark as manual since it's being edited
+      manual_entry: true,
       updated_at: new Date().toISOString(),
     };
 
     await record.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Record updated successfully",
       record: {
@@ -618,15 +585,13 @@ const updateEmissionRecord = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Update Error:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    console.error("❌ updateEmissionRecord error:", error.message);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Helper function to get units
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
 const getUnitForType = (type) => {
   const units = {
     electricity: "kWh",

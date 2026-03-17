@@ -1,6 +1,46 @@
 import React, { useState, useEffect } from "react";
 import { carbonAPI } from "../services/api.js";
 
+const carbonTypes = {
+  electricity: {
+    subtypes: ["grid_average", "coal", "natural_gas", "solar", "wind", "hydro"],
+    unit: "kWh",
+    placeholder: "e.g., 150",
+    emoji: "⚡",
+  },
+  transportation: {
+    subtypes: [
+      "gasoline",
+      "diesel",
+      "electric_vehicle",
+      "gas_vehicle",
+      "public_transit",
+      "flight",
+    ],
+    unit: "miles / gallons",
+    placeholder: "e.g., 30",
+    emoji: "🚗",
+  },
+  food: {
+    subtypes: ["beef", "chicken", "cheese", "pork", "vegetables", "fruits"],
+    unit: "kg",
+    placeholder: "e.g., 2.5",
+    emoji: "🍽️",
+  },
+  home: {
+    subtypes: ["natural_gas", "heating_oil", "propane"],
+    unit: "therms / gallons",
+    placeholder: "e.g., 25",
+    emoji: "🏠",
+  },
+  waste: {
+    subtypes: ["landfill", "recycled", "composted"],
+    unit: "kg",
+    placeholder: "e.g., 15",
+    emoji: "♻️",
+  },
+};
+
 const EditEntryModal = ({ isOpen, onClose, record, onSuccess }) => {
   const [formData, setFormData] = useState({
     type: "electricity",
@@ -10,50 +50,8 @@ const EditEntryModal = ({ isOpen, onClose, record, onSuccess }) => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [updateResult, setUpdateResult] = useState(null);
 
-  const carbonTypes = {
-    electricity: {
-      subtypes: [
-        "grid_average",
-        "coal",
-        "natural_gas",
-        "solar",
-        "wind",
-        "hydro",
-      ],
-      unit: "kWh",
-      placeholder: "e.g., 150",
-    },
-    transportation: {
-      subtypes: [
-        "gasoline",
-        "diesel",
-        "electric_vehicle",
-        "gas_vehicle",
-        "public_transit",
-        "flight",
-      ],
-      unit: "miles/gallons",
-      placeholder: "e.g., 30 miles or 10 gallons",
-    },
-    food: {
-      subtypes: ["beef", "chicken", "cheese", "pork", "vegetables", "fruits"],
-      unit: "kg",
-      placeholder: "e.g., 2.5",
-    },
-    home: {
-      subtypes: ["natural_gas", "heating_oil", "propane"],
-      unit: "therms/gallons",
-      placeholder: "e.g., 25 therms",
-    },
-    waste: {
-      subtypes: ["landfill", "recycled", "composted"],
-      unit: "kg",
-      placeholder: "e.g., 15",
-    },
-  };
-
-  // Initialize form with record data when modal opens
   useEffect(() => {
     if (record && isOpen) {
       setFormData({
@@ -63,10 +61,11 @@ const EditEntryModal = ({ isOpen, onClose, record, onSuccess }) => {
         description:
           record.analysis.source_text?.replace(
             /^(Manual entry|Updated entry|Electricity usage|Gasoline purchase):\s*/i,
-            ""
+            "",
           ) || "",
       });
       setError("");
+      setUpdateResult(null);
     }
   }, [record, isOpen]);
 
@@ -74,13 +73,13 @@ const EditEntryModal = ({ isOpen, onClose, record, onSuccess }) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setUpdateResult(null);
 
     if (!formData.value || isNaN(formData.value)) {
       setError("Please enter a valid number");
       setLoading(false);
       return;
     }
-
     if (!formData.subtype) {
       setError("Please select a type");
       setLoading(false);
@@ -88,28 +87,34 @@ const EditEntryModal = ({ isOpen, onClose, record, onSuccess }) => {
     }
 
     try {
-      const result = await carbonAPI.updateEmissionRecord(
+      const res = await carbonAPI.updateEmissionRecord(
         record._id,
         formData.type,
         formData.value,
         formData.subtype,
-        formData.description
+        formData.description,
       );
 
-      if (result.success) {
-        onSuccess(result.record);
-        onClose();
+      if (res.success) {
+        setUpdateResult(res);
+        onSuccess(res.record);
+        setTimeout(() => {
+          onClose();
+          setUpdateResult(null);
+        }, 2000);
       } else {
-        setError(result.message || "Failed to update entry");
+        setError(res.message || "Failed to update entry");
       }
-    } catch (error) {
-      setError(error.message || "Failed to update entry");
+    } catch (err) {
+      setError(err.message || "Failed to update entry");
     } finally {
       setLoading(false);
     }
   };
 
   if (!isOpen || !record) return null;
+
+  const currentType = carbonTypes[formData.type];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -119,30 +124,76 @@ const EditEntryModal = ({ isOpen, onClose, record, onSuccess }) => {
             <h2 className="text-2xl font-bold text-green-800">Edit Entry</h2>
             <button
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 text-2xl"
+              className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
             >
               ×
             </button>
           </div>
 
+          {/* Update success */}
+          {updateResult && (
+            <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-green-600 font-bold">✓</span>
+                <span className="font-semibold text-green-800">
+                  Updated successfully
+                </span>
+              </div>
+              <p className="text-green-700 text-sm">
+                New carbon:{" "}
+                <strong>
+                  {updateResult.record?.analysis?.total_emission} kg CO₂e
+                </strong>
+              </p>
+              {updateResult.record?.analysis?.equivalents?.trees_needed > 0 && (
+                <p className="text-green-600 text-xs mt-1">
+                  🌳 {updateResult.record.analysis.equivalents.trees_needed}{" "}
+                  trees · 🚗{" "}
+                  {updateResult.record.analysis.equivalents.car_miles?.toLocaleString()}{" "}
+                  miles
+                </p>
+              )}
+            </div>
+          )}
+
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4 text-sm">
               {error}
             </div>
           )}
 
-          <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-            <h3 className="font-semibold text-blue-800 mb-2">Original Entry</h3>
-            <p className="text-blue-700 text-sm">
-              Category:{" "}
-              <span className="capitalize">{record.analysis.category}</span>
-            </p>
-            <p className="text-blue-700 text-sm">
-              Value: {record.analysis.quantity} {record.analysis.unit}
-            </p>
-            <p className="text-blue-700 text-sm">
-              Carbon: {record.analysis.total_emission} kg CO₂e
-            </p>
+          {/* Original entry */}
+          <div className="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <h3 className="font-semibold text-gray-700 mb-2 text-sm">
+              Original Entry
+            </h3>
+            <div className="grid grid-cols-3 gap-2 text-sm">
+              <div>
+                <p className="text-gray-400 text-xs">Category</p>
+                <p className="font-medium text-gray-700 capitalize">
+                  {carbonTypes[record.analysis.category]?.emoji || "📄"}{" "}
+                  {record.analysis.category}
+                </p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-xs">Value</p>
+                <p className="font-medium text-gray-700">
+                  {record.analysis.quantity} {record.analysis.unit}
+                </p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-xs">Carbon</p>
+                <p className="font-medium text-green-700">
+                  {record.analysis.total_emission} kg
+                </p>
+              </div>
+            </div>
+            {record.analysis.equivalents?.trees_needed > 0 && (
+              <p className="text-xs text-gray-400 mt-2">
+                🌳 {record.analysis.equivalents.trees_needed} trees · 🚗{" "}
+                {record.analysis.equivalents.car_miles?.toLocaleString()} miles
+              </p>
+            )}
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -162,11 +213,11 @@ const EditEntryModal = ({ isOpen, onClose, record, onSuccess }) => {
                 className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-green-400 focus:outline-none"
                 required
               >
-                <option value="electricity">Electricity</option>
-                <option value="transportation">Transportation</option>
-                <option value="food">Food</option>
-                <option value="home">Home Energy</option>
-                <option value="waste">Waste</option>
+                {Object.entries(carbonTypes).map(([key, val]) => (
+                  <option key={key} value={key}>
+                    {val.emoji} {key.charAt(0).toUpperCase() + key.slice(1)}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -182,14 +233,12 @@ const EditEntryModal = ({ isOpen, onClose, record, onSuccess }) => {
                 className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-green-400 focus:outline-none"
                 required
               >
-                <option value="">Select type...</option>
-                {carbonTypes[formData.type].subtypes.map((subtype) => (
-                  <option key={subtype} value={subtype}>
-                    {subtype
+                <option value="">Select type…</option>
+                {currentType.subtypes.map((s) => (
+                  <option key={s} value={s}>
+                    {s
                       .split("_")
-                      .map(
-                        (word) => word.charAt(0).toUpperCase() + word.slice(1)
-                      )
+                      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
                       .join(" ")}
                   </option>
                 ))}
@@ -198,7 +247,7 @@ const EditEntryModal = ({ isOpen, onClose, record, onSuccess }) => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Value ({carbonTypes[formData.type].unit})
+                Value ({currentType.unit})
               </label>
               <input
                 type="number"
@@ -207,7 +256,7 @@ const EditEntryModal = ({ isOpen, onClose, record, onSuccess }) => {
                 onChange={(e) =>
                   setFormData({ ...formData, value: e.target.value })
                 }
-                placeholder={carbonTypes[formData.type].placeholder}
+                placeholder={currentType.placeholder}
                 className="w-full border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-green-400 focus:outline-none"
                 required
               />
@@ -228,34 +277,36 @@ const EditEntryModal = ({ isOpen, onClose, record, onSuccess }) => {
               />
             </div>
 
-            <div className="flex gap-3 pt-4">
+            <div className="flex gap-3 pt-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-3 rounded-md transition"
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 rounded-md transition"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !!updateResult}
                 className={`flex-1 ${
-                  loading
+                  loading || updateResult
                     ? "bg-green-400 cursor-not-allowed"
                     : "bg-green-500 hover:bg-green-600"
                 } text-white font-semibold py-3 rounded-md transition`}
               >
-                {loading ? "Updating..." : "Update Entry"}
+                {loading
+                  ? "Updating…"
+                  : updateResult
+                    ? "Done ✓"
+                    : "Update Entry"}
               </button>
             </div>
           </form>
 
-          <div className="mt-6 p-4 bg-yellow-50 rounded-lg">
-            <h3 className="font-semibold text-yellow-800 mb-2">⚠️ Note</h3>
-            <p className="text-sm text-yellow-700">
-              Editing this entry will recalculate the carbon footprint based on
-              your changes. The original data will be updated and cannot be
-              recovered.
+          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-xs text-amber-700">
+              ⚠️ Updating will recalculate carbon using current emission
+              factors. The original data cannot be recovered.
             </p>
           </div>
         </div>

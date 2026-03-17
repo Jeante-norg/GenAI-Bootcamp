@@ -4,6 +4,15 @@ import { useNavigate } from "react-router-dom";
 import ManualEntryModal from "./ManualEntryModal.jsx";
 import EditEntryModal from "./EditEntryModal.jsx";
 import ExportModal from "./ExportModal.jsx";
+import RAGInsightCard from "./RAGInsightCard.jsx";
+
+const CATEGORY_EMOJI = {
+  electricity: "⚡",
+  transportation: "🚗",
+  food: "🍽️",
+  home: "🏠",
+  waste: "♻️",
+};
 
 function LandingPage() {
   const [uploading, setUploading] = useState(false);
@@ -18,14 +27,14 @@ function LandingPage() {
   const [showEditEntry, setShowEditEntry] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [lastUploadResult, setLastUploadResult] = useState(null);
+  const [uploadError, setUploadError] = useState(null);
   const navigate = useNavigate();
 
-  // Fetch user emissions data
   const fetchUserEmissions = async () => {
     try {
       setLoading(true);
       const result = await carbonAPI.getUserEmissions();
-
       if (result.success) {
         setEmissionsData(result.records || []);
         setSummary(
@@ -33,14 +42,10 @@ function LandingPage() {
             totalCarbon: 0,
             monthlyCarbon: 0,
             totalRecords: 0,
-          }
+          },
         );
-      } else {
-        console.error("Failed to fetch emissions:", result.message);
       }
     } catch (error) {
-      console.error("Error fetching emissions:", error);
-      // If unauthorized, redirect to login
       if (
         error.message.includes("Unauthorized") ||
         error.message.includes("401")
@@ -52,11 +57,9 @@ function LandingPage() {
     }
   };
 
-  // Handle file upload
   const handleFileUpload = async (file) => {
     if (!file) return;
 
-    // Validate file type
     const validTypes = [
       "image/jpeg",
       "image/png",
@@ -65,147 +68,125 @@ function LandingPage() {
       "text/csv",
     ];
     if (!validTypes.includes(file.type)) {
-      alert("Please select a PDF, JPG, PNG, or text file");
+      setUploadError("Please select a PDF, JPG, PNG, or text file");
       return;
     }
-
-    // Validate file size (10MB)
     if (file.size > 10 * 1024 * 1024) {
-      alert("File size must be less than 10MB");
+      setUploadError("File size must be less than 10 MB");
       return;
     }
 
     setUploading(true);
+    setLastUploadResult(null);
+    setUploadError(null);
+
     try {
       const result = await carbonAPI.uploadDocument(file);
-
       if (result.success) {
-        // Show success message without alert
-        console.log(
-          `File processed successfully! Carbon calculated: ${
-            result.data.total_emission || result.calculatedCarbon || 0
-          } kg CO₂e`
-        );
-
-        // Refresh the emissions data
+        setLastUploadResult(result);
         await fetchUserEmissions();
-
-        // Reset file input
-        document.getElementById("fileUpload").value = "";
-
-        // Show subtle success indicator
-        const uploadArea = document.querySelector(".border-green-500");
-        if (uploadArea) {
-          uploadArea.classList.add("bg-green-100");
-          setTimeout(() => {
-            uploadArea.classList.remove("bg-green-100");
-          }, 2000);
-        }
+        const input = document.getElementById("fileUpload");
+        if (input) input.value = "";
       } else {
-        alert(`Upload failed: ${result.message || "Unknown error"}`);
+        setUploadError(result.message || "Upload failed. Please try again.");
       }
     } catch (error) {
-      console.error("Upload error:", error);
-      alert(`Upload error: ${error.message || "Please try again"}`);
+      setUploadError(error.message || "Upload error. Please try again.");
     } finally {
       setUploading(false);
     }
   };
 
-  // Calculate percentage change (mock data for now)
-  const calculatePercentageChange = () => {
-    // In a real app, you'd compare with previous month
-    return 15; // Mock 15% increase
-  };
-
-  // Get latest AI suggestions
   const getLatestSuggestions = () => {
     if (emissionsData.length === 0) {
       return {
         highImpact: "Start uploading documents to get insights",
         aiSuggestion: "Upload your first bill or receipt to begin tracking",
+        extraAdvice: [],
       };
     }
-
-    const latestRecord = emissionsData[0];
-    const analysis = latestRecord.analysis;
-
+    const latest = emissionsData[0].analysis;
+    const advice = Array.isArray(latest.advice) ? latest.advice : [];
     return {
-      highImpact: analysis.category
-        ? `${
-            analysis.category.charAt(0).toUpperCase() +
-            analysis.category.slice(1)
-          } contributes significantly to your emissions`
+      highImpact: latest.category
+        ? `${latest.category.charAt(0).toUpperCase() + latest.category.slice(1)} contributes significantly to your emissions`
         : "Analyzing your emission patterns",
       aiSuggestion:
-        analysis.advice && analysis.advice.length > 0
-          ? analysis.advice[0]
+        advice.length > 0
+          ? advice[0]
           : "Continue tracking to get personalized recommendations",
+      extraAdvice: advice.slice(1),
     };
   };
 
-  // Navigate to detailed report
-  const handleViewReport = () => {
-    navigate("/report");
-  };
-
-  // Handle manual entry success
-  const handleManualEntrySuccess = (newEntry) => {
-    console.log("Manual entry added:", newEntry);
-    // Refresh data to show the new entry
-    fetchUserEmissions();
-  };
-
-  // Handle edit entry success
-  const handleEditEntrySuccess = (updatedEntry) => {
-    console.log("Entry updated:", updatedEntry);
-    // Refresh data to show the updated entry
-    fetchUserEmissions();
-  };
-
-  // Handle export completion
+  const handleManualEntrySuccess = () => fetchUserEmissions();
+  const handleEditEntrySuccess = () => fetchUserEmissions();
   const handleExportComplete = (result) => {
-    if (result.success) {
-      console.log("Export completed successfully:", result);
-    } else {
-      alert(`Export failed: ${result.error}`);
-    }
+    if (!result.success) setUploadError(`Export failed: ${result.error}`);
   };
 
-  // Open edit modal
   const handleEditRecord = (record) => {
     setSelectedRecord(record);
     setShowEditEntry(true);
   };
-
-  // Close edit modal
   const handleCloseEdit = () => {
     setShowEditEntry(false);
     setSelectedRecord(null);
   };
 
-  // Load data on component mount
+  const handleDeleteRecord = async (record) => {
+    if (!window.confirm("Delete this record?")) return;
+    try {
+      const res = await carbonAPI.deleteEmissionRecord(record._id);
+      if (res.success) {
+        await fetchUserEmissions();
+      } else {
+        setUploadError("Failed to delete: " + res.message);
+      }
+    } catch (err) {
+      setUploadError("Error deleting record: " + err.message);
+    }
+  };
+
   useEffect(() => {
     fetchUserEmissions();
   }, []);
 
   const suggestions = getLatestSuggestions();
-  const percentageChange = calculatePercentageChange();
+
+  // Category breakdown for mini bars
+  const categoryBreakdown = React.useMemo(() => {
+    const map = {};
+    emissionsData.forEach((r) => {
+      const cat = r.analysis.category || "unknown";
+      map[cat] = (map[cat] || 0) + (r.analysis.total_emission || 0);
+    });
+    const total = Object.values(map).reduce((a, b) => a + b, 0) || 1;
+    return Object.entries(map)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 4)
+      .map(([cat, val]) => ({ cat, pct: Math.round((val / total) * 100) }));
+  }, [emissionsData]);
+
+  // Latest record equivalents
+  const latestEquivalents =
+    emissionsData.length > 0
+      ? emissionsData[0].analysis.equivalents || null
+      : null;
 
   return (
     <div className="bg-gray-50 min-h-screen w-full flex justify-center">
       <div className="w-full max-w-7xl p-5 text-gray-800">
-        {/* Main Section */}
         <main>
           <h1 className="text-3xl font-semibold text-green-800 mb-8">
             Dashboard
           </h1>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {/* Left Column */}
+            {/* ── Left column ── */}
             <div className="md:col-span-2 space-y-6">
-              {/* Upload Card */}
               <div className="bg-white rounded-xl shadow-md p-6">
+                {/* Card header */}
                 <div className="flex justify-between items-center text-green-800 font-semibold text-lg mb-4">
                   <span>Uploads</span>
                   <div className="flex gap-4">
@@ -216,7 +197,7 @@ function LandingPage() {
                       Export
                     </button>
                     <button
-                      onClick={handleViewReport}
+                      onClick={() => navigate("/report")}
                       className="text-green-600 hover:underline font-medium"
                     >
                       Insights
@@ -230,43 +211,44 @@ function LandingPage() {
                   </div>
                 </div>
 
-                <div className="border-2 border-dashed border-green-500 bg-green-50 rounded-lg text-center py-10 px-6 mb-6 transition-colors duration-200">
-                  <p className="text-gray-600 mb-2">
+                {/* Drop zone */}
+                <div
+                  className={`border-2 border-dashed ${
+                    uploading ? "border-green-400" : "border-green-500"
+                  } bg-green-50 rounded-lg text-center py-10 px-6 mb-4 transition-colors duration-200`}
+                >
+                  <p className="text-gray-600 mb-1">
                     Upload your bills or activity logs
                   </p>
-                  <p className="text-gray-600 mb-4">
-                    AI will calculate your carbon footprint instantly
+                  <p className="text-xs text-indigo-500 font-medium mb-3">
+                    🧠 RAG-enhanced AI for more accurate analysis
                   </p>
 
                   <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
-                    {/* Hidden file input */}
                     <input
                       id="fileUpload"
                       type="file"
                       accept=".pdf,.jpg,.png,.jpeg,.txt,.csv"
                       className="hidden"
+                      disabled={uploading}
                       onChange={(e) => {
-                        if (e.target.files.length > 0) {
+                        if (e.target.files && e.target.files.length > 0) {
                           handleFileUpload(e.target.files[0]);
                         }
                       }}
-                      disabled={uploading}
                     />
-
-                    {/* Custom styled label acts as a button */}
                     <label
                       htmlFor="fileUpload"
                       className={`inline-block ${
                         uploading
                           ? "bg-green-400 cursor-not-allowed"
-                          : "bg-green-500 hover:bg-green-700"
-                      } text-white font-semibold px-5 py-2 rounded-lg cursor-pointer transition duration-200`}
+                          : "bg-green-500 hover:bg-green-700 cursor-pointer"
+                      } text-white font-semibold px-5 py-2 rounded-lg transition duration-200`}
                     >
-                      {uploading ? "Processing..." : "Choose File"}
+                      {uploading ? "Analyzing…" : "Choose File"}
                     </label>
-
-                    {/* Manual Entry Button */}
                     <button
+                      type="button"
                       onClick={() => setShowManualEntry(true)}
                       className="bg-white text-green-700 border border-green-500 hover:bg-green-100 font-semibold px-5 py-2 rounded-lg transition duration-200"
                     >
@@ -276,20 +258,48 @@ function LandingPage() {
 
                   <p className="text-sm text-gray-500 mt-3">
                     {uploading
-                      ? "Analyzing your document..."
-                      : "Accepted formats: .pdf, .jpg, .png, .txt, .csv"}
+                      ? "Retrieving context and calculating emissions…"
+                      : "Accepted: .pdf, .jpg, .png, .txt, .csv"}
                   </p>
                   {uploading && (
-                    <div className="mt-2">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-500 mx-auto"></div>
+                    <div className="mt-3 flex flex-col items-center gap-2">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-500" />
+                      <p className="text-xs text-indigo-600 font-medium">
+                        🧠 RAG context retrieval in progress…
+                      </p>
                     </div>
                   )}
                 </div>
 
-                <div>
+                {/* Upload error */}
+                {uploadError && (
+                  <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex justify-between items-start gap-3">
+                    <div>
+                      <p className="font-medium text-sm">Upload failed</p>
+                      <p className="text-sm mt-0.5">{uploadError}</p>
+                    </div>
+                    <button
+                      onClick={() => setUploadError(null)}
+                      className="text-red-400 hover:text-red-600 text-xl leading-none shrink-0"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+
+                {/* RAG result card */}
+                {lastUploadResult && (
+                  <RAGInsightCard
+                    result={lastUploadResult}
+                    onDismiss={() => setLastUploadResult(null)}
+                  />
+                )}
+
+                {/* Recent uploads list */}
+                <div className="mt-6">
                   <div className="flex justify-between items-center mb-3">
                     <h3 className="font-semibold text-green-800">
-                      Recent Uploads {loading && "(Loading...)"}
+                      Recent Uploads{loading && " (Loading…)"}
                     </h3>
                     <span className="text-sm text-gray-500">
                       {emissionsData.length} total records
@@ -299,112 +309,98 @@ function LandingPage() {
                   {emissionsData.length === 0 ? (
                     <p className="text-gray-500 text-center py-4">
                       {loading
-                        ? "Loading your data..."
+                        ? "Loading your data…"
                         : "No documents uploaded yet"}
                     </p>
                   ) : (
                     <div className="space-y-3">
-                      {emissionsData.slice(0, 5).map((record, index) => (
-                        <div
-                          key={record._id}
-                          className="flex justify-between items-center border-b border-gray-200 pb-3"
-                        >
-                          <div>
-                            <div className="font-medium text-gray-700">
-                              {record.analysis.manual_entry
-                                ? "📝 Manual Entry"
-                                : `Document ${index + 1}`}
-                              <span className="ml-2 text-sm text-green-600 capitalize">
-                                ({record.analysis.category || "Unknown"})
+                      {emissionsData.slice(0, 5).map((record, index) => {
+                        const cat = record.analysis.category || "unknown";
+                        const emoji = CATEGORY_EMOJI[cat] || "📄";
+                        const eq = record.analysis.equivalents;
+                        return (
+                          <div
+                            key={record._id}
+                            className="flex justify-between items-start border-b border-gray-100 pb-3 last:border-b-0"
+                          >
+                            <div className="flex items-start gap-2 min-w-0">
+                              <span className="text-lg mt-0.5 shrink-0">
+                                {emoji}
                               </span>
+                              <div className="min-w-0">
+                                <div className="font-medium text-gray-700 truncate">
+                                  {record.analysis.manual_entry
+                                    ? "Manual Entry"
+                                    : `Document ${index + 1}`}
+                                  <span className="ml-2 text-sm text-green-600 capitalize">
+                                    ({cat})
+                                  </span>
+                                  {record.analysis.calculated_with && (
+                                    <span className="ml-1 text-xs text-indigo-400">
+                                      · AI
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-sm text-gray-500 truncate">
+                                  {new Date(
+                                    record.createdAt,
+                                  ).toLocaleDateString()}
+                                  {record.analysis.source_text &&
+                                    ` · ${record.analysis.source_text.substring(0, 40)}…`}
+                                </div>
+                                {eq && eq.trees_needed > 0 && (
+                                  <div className="text-xs text-gray-400 mt-0.5">
+                                    🌳 {eq.trees_needed} trees · 🚗{" "}
+                                    {eq.car_miles != null
+                                      ? eq.car_miles.toLocaleString()
+                                      : 0}{" "}
+                                    mi
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                            <div className="text-sm text-gray-500">
-                              {new Date(record.createdAt).toLocaleDateString()}
-                              {record.analysis.source_text &&
-                                ` • ${record.analysis.source_text.substring(
-                                  0,
-                                  30
-                                )}...`}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-green-700 font-semibold">
-                              {record.analysis.total_emission
-                                ? `${record.analysis.total_emission} kg CO₂e`
-                                : "Calculating..."}
-                            </span>
-                            <div className="flex gap-1">
+                            <div className="flex items-center gap-2 shrink-0 ml-3">
+                              <span className="text-green-700 font-semibold text-sm whitespace-nowrap">
+                                {record.analysis.total_emission != null
+                                  ? `${record.analysis.total_emission} kg`
+                                  : "—"}
+                              </span>
                               <button
                                 onClick={() => handleEditRecord(record)}
-                                className="text-blue-500 hover:text-blue-700 text-sm font-medium"
-                                title="Edit this record"
+                                title="Edit"
+                                className="text-blue-400 hover:text-blue-600 text-base"
                               >
                                 ✏️
                               </button>
                               <button
-                                onClick={async () => {
-                                  if (
-                                    window.confirm(
-                                      "Are you sure you want to delete this record?"
-                                    )
-                                  ) {
-                                    try {
-                                      const result =
-                                        await carbonAPI.deleteEmissionRecord(
-                                          record._id
-                                        );
-                                      if (result.success) {
-                                        // Refresh the data
-                                        await fetchUserEmissions();
-                                      } else {
-                                        alert(
-                                          "Failed to delete record: " +
-                                            result.message
-                                        );
-                                      }
-                                    } catch (error) {
-                                      alert(
-                                        "Error deleting record: " +
-                                          error.message
-                                      );
-                                    }
-                                  }
-                                }}
-                                className="text-red-500 hover:text-red-700 text-sm font-medium"
-                                title="Delete this record"
+                                onClick={() => handleDeleteRecord(record)}
+                                title="Delete"
+                                className="text-red-400 hover:text-red-600 text-base"
                               >
                                 🗑️
                               </button>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Right Column */}
+            {/* ── Right column ── */}
             <div className="space-y-6">
-              {/* Monthly Footprint */}
+              {/* Monthly footprint */}
               <div className="bg-white rounded-xl shadow-md p-6 text-center">
                 <div className="text-lg font-semibold text-green-800 mb-2">
-                  This Month's Footprints
+                  This Month's Footprint
                 </div>
                 <div className="text-3xl font-bold text-green-700 mb-2">
-                  {loading ? "..." : `${summary.monthlyCarbon} kg CO₂e`}
-                </div>
-                <div
-                  className={`font-medium mb-3 ${
-                    percentageChange > 0 ? "text-red-600" : "text-green-600"
-                  }`}
-                >
-                  {percentageChange > 0 ? "↑" : "↓"}
-                  {Math.abs(percentageChange)}% from last month
+                  {loading ? "…" : `${summary.monthlyCarbon} kg CO₂e`}
                 </div>
                 <button
-                  onClick={handleViewReport}
+                  onClick={() => navigate("/report")}
                   className="text-green-600 font-semibold hover:underline"
                 >
                   See Detailed Report
@@ -416,39 +412,120 @@ function LandingPage() {
                 <div className="text-lg font-semibold text-green-800 mb-4">
                   Insights
                 </div>
-                <div className="space-y-6">
+
+                {/* Latest equivalents block */}
+                {latestEquivalents &&
+                  (latestEquivalents.trees_needed > 0 ||
+                    latestEquivalents.car_miles > 0) && (
+                    <div className="mb-4 p-3 bg-indigo-50 rounded-lg">
+                      <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-2">
+                        🧠 Latest Entry Equivalents
+                      </p>
+                      <div className="space-y-1 text-sm text-indigo-700">
+                        {latestEquivalents.trees_needed > 0 && (
+                          <p>
+                            🌳 {latestEquivalents.trees_needed} trees needed for
+                            1 year
+                          </p>
+                        )}
+                        {latestEquivalents.car_miles > 0 && (
+                          <p>
+                            🚗{" "}
+                            {latestEquivalents.car_miles != null
+                              ? latestEquivalents.car_miles.toLocaleString()
+                              : 0}{" "}
+                            miles of driving
+                          </p>
+                        )}
+                        {latestEquivalents.smartphones_charged > 0 && (
+                          <p>
+                            📱{" "}
+                            {latestEquivalents.smartphones_charged != null
+                              ? latestEquivalents.smartphones_charged.toLocaleString()
+                              : 0}{" "}
+                            phones charged
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                <div className="space-y-4">
                   <div>
                     <div className="font-semibold text-green-800 mb-1">
                       High-Impact Areas
                     </div>
-                    <p className="text-gray-600">{suggestions.highImpact}</p>
+                    <p className="text-gray-600 text-sm">
+                      {suggestions.highImpact}
+                    </p>
                   </div>
 
                   <div>
                     <div className="font-semibold text-green-800 mb-1">
                       AI Suggestion
                     </div>
-                    <div className="bg-green-50 p-4 rounded-lg text-gray-700">
+                    <div className="bg-green-50 p-3 rounded-lg text-gray-700 text-sm">
                       {suggestions.aiSuggestion}
                     </div>
                   </div>
+
+                  {suggestions.extraAdvice.length > 0 && (
+                    <div>
+                      <div className="font-semibold text-green-800 mb-2">
+                        More Tips
+                      </div>
+                      <ul className="space-y-1.5">
+                        {suggestions.extraAdvice.map((tip, i) => (
+                          <li
+                            key={i}
+                            className="text-sm text-gray-600 flex items-start gap-1.5"
+                          >
+                            <span className="shrink-0 mt-0.5">•</span>
+                            <span>{tip}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Total Summary */}
+              {/* Total footprint + mini bars */}
               <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="text-lg font-semibold text-green-800 mb-2">
+                <div className="text-lg font-semibold text-green-800 mb-1">
                   Total Footprint
                 </div>
-                <div className="text-2xl font-bold text-green-700 mb-2">
-                  {loading ? "..." : `${summary.totalCarbon} kg CO₂e`}
+                <div className="text-2xl font-bold text-green-700 mb-1">
+                  {loading ? "…" : `${summary.totalCarbon} kg CO₂e`}
                 </div>
-                <div className="text-gray-600">
-                  {summary.totalRecords} documents analyzed
+                <div className="text-gray-600 text-sm mb-4">
+                  {summary.totalRecords} records analyzed
                 </div>
+
+                {categoryBreakdown.length > 0 && (
+                  <div className="mb-4 space-y-2">
+                    {categoryBreakdown.map(({ cat, pct }) => (
+                      <div key={cat}>
+                        <div className="flex justify-between text-xs text-gray-600 mb-0.5">
+                          <span className="capitalize">
+                            {CATEGORY_EMOJI[cat] || "📄"} {cat}
+                          </span>
+                          <span>{pct}%</span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-1.5">
+                          <div
+                            className="bg-green-500 h-1.5 rounded-full"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <button
                   onClick={() => setShowExportModal(true)}
-                  className="w-full mt-4 bg-green-500 hover:bg-green-600 text-white font-semibold py-2 rounded-md transition"
+                  className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2 rounded-md transition"
                 >
                   Export All Data
                 </button>
@@ -457,22 +534,17 @@ function LandingPage() {
           </div>
         </main>
 
-        {/* Manual Entry Modal */}
         <ManualEntryModal
           isOpen={showManualEntry}
           onClose={() => setShowManualEntry(false)}
           onSuccess={handleManualEntrySuccess}
         />
-
-        {/* Edit Entry Modal */}
         <EditEntryModal
           isOpen={showEditEntry}
           onClose={handleCloseEdit}
           record={selectedRecord}
           onSuccess={handleEditEntrySuccess}
         />
-
-        {/* Export Modal */}
         <ExportModal
           isOpen={showExportModal}
           onClose={() => setShowExportModal(false)}
