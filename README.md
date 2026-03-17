@@ -1,8 +1,6 @@
-# High-Level Design (HLD)
 
-## 1. Project Title
 
-**CarbonKind – Document-Based Personal Carbon Footprint Tracker**
+# **CarbonKind – Document-Based Personal Carbon Footprint Tracker**
 
 ---
 
